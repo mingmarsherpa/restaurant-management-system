@@ -36,6 +36,7 @@ h4 { margin-bottom: 5px; font-size: 18px; }
 .tab.active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--green); content: ''; }
 .tab span { display: grid; place-items: center; min-width: 22px; height: 22px; border-radius: 50%; background: #e8eee9; color: var(--green); font-size: 11px; }
 .content-grid { display: grid; gap: 20px; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .section-heading { margin-bottom: 3px; }
 .card-list, .group-grid { display: grid; gap: 10px; }
 .group-grid { grid-template-columns: repeat(2, 1fr); }

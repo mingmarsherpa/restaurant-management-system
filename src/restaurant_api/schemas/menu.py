@@ -37,6 +37,28 @@ class OptionGroupRead(BaseModel):
 	options: list[OptionRead] = Field(default_factory=list)
 
 
+class PaginationMeta(BaseModel):
+	page: int
+	page_size: int
+	total: int
+	total_pages: int
+
+
+class ItemPage(BaseModel):
+	items: list["ItemRead"] = Field(default_factory=list)
+	pagination: PaginationMeta
+
+
+class OptionGroupPage(BaseModel):
+	groups: list[OptionGroupRead] = Field(default_factory=list)
+	pagination: PaginationMeta
+
+
+class OptionPage(BaseModel):
+	options: list[OptionRead] = Field(default_factory=list)
+	pagination: PaginationMeta
+
+
 class OptionCreate(BaseModel):
 	name: Annotated[MenuName, StringConstraints(max_length=100)]
 	group_id: PositiveInt

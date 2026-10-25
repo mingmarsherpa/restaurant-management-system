@@ -64,7 +64,7 @@ Create an `APIRouter` in `src/restaurant_api/router/router.py` and register it f
 ### Item endpoints
 
 - `POST /api/menu/items` creates an item and its optional group/option associations.
-- `GET /api/menu/items` lists items with predictable ordering and required menu relationships loaded.
+- `GET /api/menu/items` lists items with predictable ordering, required menu relationships loaded, and `page`/`page_size` pagination.
 - `GET /api/menu/items/{item_id}` returns one complete menu item or `404`.
 - `PATCH /api/menu/items/{item_id}` updates scalar fields and explicitly requested relationships.
 - `DELETE /api/menu/items/{item_id}` deletes the item and its dependent associations, returning `204`.
@@ -72,7 +72,7 @@ Create an `APIRouter` in `src/restaurant_api/router/router.py` and register it f
 ### Option group endpoints
 
 - `POST /api/menu/option-groups` creates a group.
-- `GET /api/menu/option-groups` lists groups with their options.
+- `GET /api/menu/option-groups` lists groups with their options and `page`/`page_size` pagination.
 - `GET /api/menu/option-groups/{group_id}` returns one group or `404`.
 - `PATCH /api/menu/option-groups/{group_id}` updates the group name.
 - `DELETE /api/menu/option-groups/{group_id}` deletes the group according to the existing cascade behavior.
@@ -80,7 +80,7 @@ Create an `APIRouter` in `src/restaurant_api/router/router.py` and register it f
 ### Option endpoints
 
 - `POST /api/menu/options` creates an option under an existing group.
-- `GET /api/menu/options` lists options, with an optional `group_id` filter.
+- `GET /api/menu/options` lists options with `page`/`page_size` pagination and an optional `group_id` filter.
 - `GET /api/menu/options/{option_id}` returns one option or `404`.
 - `PATCH /api/menu/options/{option_id}` updates allowed fields.
 - `DELETE /api/menu/options/{option_id}` deletes the option and its item-option associations.

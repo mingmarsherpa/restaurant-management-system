@@ -1,0 +1,17 @@
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import { Empty, PaginationControls } from '../../components/Shared'
+import { request } from './api'
+import type { Mutate, Option, OptionGroup, Pagination } from './types'
+
+export function OptionsPanel({ groups, options, pagination, onPageChange, mutate }: { groups: OptionGroup[]; options: Option[]; pagination: Pagination; onPageChange: (page: number) => void; mutate: Mutate }) {
+  const [editing, setEditing] = useState<number | 'new' | null>(null)
+  return <section className="content-grid"><div className="section-heading"><div><p className="eyebrow">Choices in your groups</p><h3>Options</h3></div><button className="button primary" onClick={() => setEditing('new')}>+ Add choice</button></div>{editing !== null && <OptionForm option={editing === 'new' ? undefined : options.find((option) => option.id === editing)} groups={groups} onCancel={() => setEditing(null)} mutate={mutate} />}{options.length === 0 ? <Empty title="No choices yet" text="Add choices after creating an option group." /> : <div className="card-list">{options.map((option) => { const group = groups.find((candidate) => candidate.id === option.group_id); return <article className="resource-card" key={option.id}><div className="resource-main"><span className="number">#{String(option.id).padStart(2, '0')}</span><div><h4>{option.name}</h4><p className="muted">{group?.name ?? 'Unknown group'}</p></div></div><div className="actions"><button className="link-button" onClick={() => setEditing(option.id)}>Edit</button><button className="link-button danger-text" onClick={() => { if (confirm(`Delete ${option.name}?`)) void mutate(() => request<void>(`/options/${option.id}`, { method: 'DELETE' }), 'Choice deleted') }}>Delete</button></div></article> })}</div>}<PaginationControls page={pagination.page} totalPages={pagination.total_pages} onPageChange={onPageChange} /></section>
+}
+
+function OptionForm({ option, groups, onCancel, mutate }: { option?: Option; groups: OptionGroup[]; onCancel: () => void; mutate: Mutate }) {
+  const [name, setName] = useState(option?.name ?? '')
+  const [groupId, setGroupId] = useState(String(option?.group_id ?? groups[0]?.id ?? ''))
+  const submit = (event: FormEvent) => { event.preventDefault(); void mutate(async () => { await request<Option>(option ? `/options/${option.id}` : '/options', { method: option ? 'PATCH' : 'POST', body: JSON.stringify({ name: name.trim(), group_id: Number(groupId) }) }); onCancel() }, option ? 'Choice updated' : 'Choice added') }
+  return <form className="form-card compact" onSubmit={submit}><div className="form-heading"><div><p className="eyebrow">{option ? 'Edit choice' : 'New choice'}</p><h3>{option ? option.name : 'Add a choice'}</h3></div><button type="button" className="close" onClick={onCancel}>×</button></div>{groups.length === 0 ? <p className="muted">Create an option group first.</p> : <><label>Choice name<input required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Extra cheese" /></label><label>Option group<select required value={groupId} onChange={(event) => setGroupId(event.target.value)}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label></>}<div className="form-actions"><button type="button" className="button ghost" onClick={onCancel}>Cancel</button><button className="button primary" type="submit" disabled={groups.length === 0}>Save choice</button></div></form>
+}

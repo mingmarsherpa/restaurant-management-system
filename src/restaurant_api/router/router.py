@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,12 +11,15 @@ from ..schemas.menu import (
 	ItemCreate,
 	ItemOptionPriceRead,
 	ItemOptionPriceUpdate,
+	ItemPage,
 	ItemRead,
 	ItemUpdate,
 	OptionCreate,
+	OptionGroupPage,
 	OptionGroupCreate,
 	OptionGroupRead,
 	OptionGroupUpdate,
+	OptionPage,
 	OptionRead,
 	OptionUpdate,
 )
@@ -31,6 +34,15 @@ async def _commit(session: AsyncSession) -> None:
 	except Exception:
 		await session.rollback()
 		raise
+
+
+def _pagination(page: int, page_size: int, total: int) -> dict[str, int]:
+	return {
+		"page": page,
+		"page_size": page_size,
+		"total": total,
+		"total_pages": (total + page_size - 1) // page_size if total else 0,
+	}
 
 
 def _unique_ids(ids: Sequence[int]) -> list[int]:
@@ -142,8 +154,13 @@ async def create_item(payload: ItemCreate, session: AsyncSession = Depends(get_d
 	return await _load_item(session, item.id)
 
 
-@router.get("/items", response_model=list[ItemRead])
-async def list_items(session: AsyncSession = Depends(get_db)) -> list[Item]:
+@router.get("/items", response_model=ItemPage)
+async def list_items(
+	page: int = Query(1, ge=1),
+	page_size: int = Query(5, ge=1, le=100),
+	session: AsyncSession = Depends(get_db),
+) -> dict:
+	total = await session.scalar(select(func.count()).select_from(Item))
 	result = await session.execute(
 		select(Item)
 		.options(
@@ -151,8 +168,13 @@ async def list_items(session: AsyncSession = Depends(get_db)) -> list[Item]:
 			selectinload(Item.item_options).selectinload(ItemOption.option),
 		)
 		.order_by(Item.id)
+		.offset((page - 1) * page_size)
+		.limit(page_size)
 	)
-	return list(result.scalars().unique())
+	return {
+		"items": list(result.scalars().unique()),
+		"pagination": _pagination(page, page_size, total or 0),
+	}
 
 
 @router.get("/items/{item_id}", response_model=ItemRead)
@@ -224,14 +246,24 @@ async def create_option_group(
 	return await _load_group(session, group.id)
 
 
-@router.get("/option-groups", response_model=list[OptionGroupRead])
-async def list_option_groups(session: AsyncSession = Depends(get_db)) -> list[OptionGroup]:
+@router.get("/option-groups", response_model=OptionGroupPage)
+async def list_option_groups(
+	page: int = Query(1, ge=1),
+	page_size: int = Query(5, ge=1, le=100),
+	session: AsyncSession = Depends(get_db),
+) -> dict:
+	total = await session.scalar(select(func.count()).select_from(OptionGroup))
 	result = await session.execute(
 		select(OptionGroup)
 		.options(selectinload(OptionGroup.options))
 		.order_by(OptionGroup.id)
+		.offset((page - 1) * page_size)
+		.limit(page_size)
 	)
-	return list(result.scalars().unique())
+	return {
+		"groups": list(result.scalars().unique()),
+		"pagination": _pagination(page, page_size, total or 0),
+	}
 
 
 @router.get("/option-groups/{group_id}", response_model=OptionGroupRead)
@@ -280,16 +312,25 @@ async def create_option(
 	return option
 
 
-@router.get("/options", response_model=list[OptionRead])
+@router.get("/options", response_model=OptionPage)
 async def list_options(
 	group_id: int | None = None,
+	page: int = Query(1, ge=1),
+	page_size: int = Query(5, ge=1, le=100),
 	session: AsyncSession = Depends(get_db),
-) -> list[Option]:
+) -> dict:
 	query = select(Option).order_by(Option.id)
+	count_query = select(func.count()).select_from(Option)
 	if group_id is not None:
 		query = query.where(Option.group_id == group_id)
+		count_query = count_query.where(Option.group_id == group_id)
+	total = await session.scalar(count_query)
+	query = query.offset((page - 1) * page_size).limit(page_size)
 	result = await session.scalars(query)
-	return list(result)
+	return {
+		"options": list(result),
+		"pagination": _pagination(page, page_size, total or 0),
+	}
 
 
 @router.get("/options/{option_id}", response_model=OptionRead)
