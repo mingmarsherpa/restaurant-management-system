@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .router.router import router as menu_router
+from .router.order_router import router as order_router
+from .router.table_router import router as table_router
 
 
 app = FastAPI(title="Restaurant API")
@@ -13,6 +15,8 @@ app.add_middleware(
 	allow_headers=["*"],
 )
 app.include_router(menu_router)
+app.include_router(table_router, prefix="/api")
+app.include_router(order_router)
 
 @app.get("/")
 def read_root():

@@ -1,4 +1,4 @@
-export type Tab = 'items' | 'groups' | 'options'
+export type Tab = 'items' | 'groups' | 'options' | 'orders'
 
 export type Option = { id: number; name: string; group_id: number }
 export type OptionGroup = { id: number; name: string; options: Option[] }
