@@ -49,6 +49,7 @@ h4 { margin-bottom: 5px; font-size: 18px; }
 .resource-card, .form-card, .empty-state { border: 1px solid var(--line); border-radius: 12px; background: white; }
 .resource-card { gap: 20px; padding: 20px 22px; }
 .resource-main { display: flex; align-items: center; gap: 17px; min-width: 0; }
+.table-qr { width: 88px; height: 88px; border: 1px solid var(--line); padding: 5px; }
 .resource-main h4 { margin-bottom: 4px; }
 .number { color: var(--orange); font-size: 11px; font-weight: 700; }
 .price { margin-left: auto; font-size: 15px; }

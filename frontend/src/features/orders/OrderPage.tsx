@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Empty } from '../../components/Shared'
 import { money } from '../menu/api'
 import type { Item } from '../menu/types'
-import { request, type Order, type Table } from './api'
+import { claimOrderer, createTableOrder, getPublicTable, listTableOrders, request, type Order } from './api'
 
 type CartLine = {
   key: string
@@ -12,9 +12,11 @@ type CartLine = {
 }
 
 export function OrderPage({ onBack }: { onBack: () => void }) {
-  const [tables, setTables] = useState<Table[]>([])
-  const [items, setItems] = useState<Item[]>([])
+  const qrToken = new URLSearchParams(window.location.search).get('table') ?? ''
+  const [tableNumber, setTableNumber] = useState<number | null>(null)
   const [tableId, setTableId] = useState<number | null>(null)
+  const [ordererToken, setOrdererToken] = useState<string | null>(null)
+  const [items, setItems] = useState<Item[]>([])
   const [cart, setCart] = useState<CartLine[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -22,9 +24,9 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
   const [notice, setNotice] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
 
-  const loadOrders = async (selectedTableId: number) => {
+  const loadOrders = async () => {
     try {
-      setOrders(await request<Order[]>(`/api/tables/${selectedTableId}/current-orders`))
+      setOrders(await listTableOrders(qrToken))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load current orders')
     }
@@ -32,14 +34,25 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     const load = async () => {
+      if (!qrToken) {
+        setError('This ordering link does not include a table')
+        setLoading(false)
+        return
+      }
       try {
-        const [loadedTables, loadedItems] = await Promise.all([
-          request<Table[]>('/api/tables/'),
+        const [loadedTable, loadedItems, loadedOrders] = await Promise.all([
+          getPublicTable(qrToken),
           request<{ items: Item[] }>('/api/menu/items?page=1&page_size=100'),
+          listTableOrders(qrToken),
         ])
-        setTables(loadedTables)
+        setTableId(loadedTable.table_id)
+        setTableNumber(loadedTable.table_number)
+        const storedSessionId = sessionStorage.getItem(`orderer-session:${qrToken}`)
+        if (storedSessionId === String(loadedTable.session_id)) {
+          setOrdererToken(sessionStorage.getItem(`orderer-token:${qrToken}`))
+        }
         setItems(loadedItems.items)
-        setTableId(loadedTables.find((table) => table.is_active)?.id ?? null)
+        setOrders(loadedOrders)
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'Unable to load ordering data')
       } finally {
@@ -47,15 +60,27 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
       }
     }
     void load()
-  }, [])
+  }, [qrToken])
 
   useEffect(() => {
-    if (tableId === null) return
-    void loadOrders(tableId)
+    if (!qrToken) return
     if (orders.length > 0 && orders.every((order) => ['completed', 'cancelled'].includes(order.status))) return
-    const timer = window.setInterval(() => void loadOrders(tableId), 7000)
+    const timer = window.setInterval(() => void loadOrders(), 7000)
     return () => window.clearInterval(timer)
-  }, [tableId, orders])
+  }, [qrToken, orders])
+
+  const claimOrderingAccess = async () => {
+    setError('')
+    try {
+      const claimed = await claimOrderer(qrToken)
+      sessionStorage.setItem(`orderer-token:${qrToken}`, claimed.orderer_token)
+      sessionStorage.setItem(`orderer-session:${qrToken}`, String(claimed.session_id))
+      setOrdererToken(claimed.orderer_token)
+      setNotice('You can now place orders for this table.')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Another guest already has ordering access')
+    }
+  }
 
   const total = useMemo(
     () => cart.reduce((sum, line) => {
@@ -102,16 +127,13 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
     setError('')
     setNotice('')
     try {
-      const order = await request<Order>(`/api/tables/${tableId}/orders`, {
-        method: 'POST',
-        body: JSON.stringify({
-          items: cart.map((line) => ({
-            item_id: line.item.id,
-            quantity: line.quantity,
-            option_ids: line.optionIds,
-          })),
-        }),
-      })
+      const order = await createTableOrder(tableId, {
+        items: cart.map((line) => ({
+          item_id: line.item.id,
+          quantity: line.quantity,
+          option_ids: line.optionIds,
+        })),
+      }, ordererToken ?? '')
       setCart([])
       setNotice(`Order #${order.id} created for ${money(order.total_price_paisa)}`)
       setOrders((current) => [order, ...current])
@@ -127,17 +149,12 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
   return (
     <section className="content-grid">
       <div className="section-heading">
-        <div><p className="eyebrow accent">New order</p><h3>Order by table</h3></div>
+        <div><p className="eyebrow accent">Table {tableNumber ?? ''}</p><h3>{ordererToken ? 'Place an order' : 'Table menu'}</h3></div>
         <button className="button ghost" onClick={onBack}>Back to menu</button>
       </div>
       {error && <div className="alert error">{error}</div>}
       {notice && <div className="alert success">{notice}</div>}
-      <label>Dining table
-        <select value={tableId ?? ''} onChange={(event) => setTableId(Number(event.target.value))}>
-          <option value="" disabled>Select a table</option>
-          {tables.map((table) => <option key={table.id} value={table.id} disabled={!table.is_active}>Table {table.table_number}{!table.is_active ? ' (inactive)' : ''}</option>)}
-        </select>
-      </label>
+      {!ordererToken && <div className="form-card"><p className="muted">You can view this table's menu and orders. One guest may claim ordering access.</p><button className="button primary" onClick={() => void claimOrderingAccess()}>Become ordering guest</button></div>}
       {orders.length > 0 && <section className="form-card">
         <div className="form-heading"><div><p className="eyebrow">Live updates</p><h3>Current orders</h3></div><span className="muted">Refreshes automatically</span></div>
         <div className="card-list">{orders.map((order) => <article className="customer-order" key={order.id}>
@@ -151,11 +168,11 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
           {items.length === 0 ? <Empty title="No dishes available" text="Add dishes in menu management first." /> : items.map((item) => (
             <article className="resource-card" key={item.id}>
               <div><h4>{item.name}</h4><p className="muted">{money(item.base_price_paisa)}</p></div>
-              <button className="button primary" onClick={() => addItem(item)}>Add</button>
+              {ordererToken && <button className="button primary" onClick={() => addItem(item)}>Add</button>}
             </article>
           ))}
         </div>
-        <aside className="form-card order-cart">
+        {ordererToken && <aside className="form-card order-cart">
           <div className="form-heading"><div><p className="eyebrow">Table order</p><h3>Cart</h3></div><strong>{money(total)}</strong></div>
           {cart.length === 0 ? <p className="muted">Add dishes to start this table's order.</p> : cart.map((line) => (
             <div className="cart-line" key={line.key}>
@@ -173,7 +190,7 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
             </div>
           ))}
           <button className="button primary" disabled={submitting || tableId === null || cart.length === 0} onClick={() => void submit()}>{submitting ? 'Submitting...' : 'Submit order'}</button>
-        </aside>
+        </aside>}
       </div>
     </section>
   )

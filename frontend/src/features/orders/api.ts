@@ -20,6 +20,34 @@ export type Table = {
   is_active: boolean
 }
 
+export type PublicTable = {
+  table_id: number
+  table_number: number
+  session_id: number
+  session_status: string
+}
+
+export type OrdererClaim = {
+  orderer_token: string
+  session_id: number
+}
+
+export const getPublicTable = (qrToken: string) =>
+  request<PublicTable>(`/api/public/tables/${qrToken}`)
+
+export const claimOrderer = (qrToken: string) =>
+  request<OrdererClaim>(`/api/public/tables/${qrToken}/claim-orderer`, { method: 'POST' })
+
+export const listTableOrders = (qrToken: string) =>
+  request<Order[]>(`/api/public/tables/${qrToken}/orders`)
+
+export const createTableOrder = (tableId: number, payload: unknown, ordererToken: string) =>
+  request<Order>(`/api/tables/${tableId}/orders`, {
+    method: 'POST',
+    headers: { 'X-Orderer-Token': ordererToken },
+    body: JSON.stringify(payload),
+  })
+
 export type MenuPage = {
   items: Item[]
   pagination: Pagination

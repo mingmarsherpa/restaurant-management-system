@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Empty } from '../../components/Shared'
-import type { Table } from './api'
+import { closeTableSession, tableQrUrl, type Table } from './api'
 import { request } from '../orders/api'
 import type { Order } from '../orders/api'
 
@@ -33,6 +33,15 @@ export function TablePanel({ tables, orders, onChange }: { tables: Table[]; orde
     }
   }
 
+  const closeSession = async (table: Table) => {
+    setError('')
+    try {
+      await closeTableSession(table.id)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to close table session')
+    }
+  }
+
   return <section className="content-grid">
     <div className="section-heading"><div><p className="eyebrow">Restaurant setup</p><h3>Tables</h3></div><button className="button primary" onClick={() => setEditing('new')}>+ Add table</button></div>
     {error && <div className="alert error">{error}</div>}
@@ -41,7 +50,8 @@ export function TablePanel({ tables, orders, onChange }: { tables: Table[]; orde
       {tables.length === 0 ? <Empty title="No tables yet" text="Add a table before accepting customer orders." /> : tables.map((table) => (
         <article className="resource-card" key={table.id}>
           <div className="resource-main"><span className="number">#{String(table.id).padStart(2, '0')}</span><div><h4>Table {table.table_number}</h4><p className="muted">{table.is_active ? 'Active and available for orders' : 'Inactive'} · {orders.filter((order) => order.table.id === table.id).length} active order(s)</p></div></div>
-          <div className="actions"><button className="link-button" onClick={() => setEditing(table.id)}>Edit</button><button className="link-button danger-text" onClick={() => void remove(table)}>Delete</button></div>
+          <img className="table-qr" src={tableQrUrl(table.id)} alt={`QR code for table ${table.table_number}`} />
+          <div className="actions"><button className="link-button" onClick={() => void closeSession(table)}>Close session</button><button className="link-button" onClick={() => setEditing(table.id)}>Edit</button><button className="link-button danger-text" onClick={() => void remove(table)}>Delete</button></div>
         </article>
       ))}
     </div>
