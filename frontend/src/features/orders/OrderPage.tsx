@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Empty } from '../../components/Shared'
 import { money } from '../menu/api'
 import type { Item } from '../menu/types'
-import { claimOrderer, createTableOrder, getPublicTable, listTableOrders, request, type Order } from './api'
+import { ApiError, claimOrderer, createTableOrder, getPublicTable, listTableOrders, request, type Order } from './api'
 
 type CartLine = {
   key: string
@@ -111,12 +111,26 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
     }))
   }
 
+  const hasCompleteOptions = (line: CartLine) => {
+    const selectedGroupIds = new Set(
+      line.optionIds.flatMap((optionId) => line.item.option_groups
+        .filter((group) => group.options.some((option) => option.id === optionId))
+        .map((group) => group.id)),
+    )
+    return line.item.option_groups.every((group) => selectedGroupIds.has(group.id))
+  }
+
   const toggleOption = (key: string, optionId: number) => {
     setCart((current) => current.map((line) => {
       if (line.key !== key) return line
-      const optionIds = line.optionIds.includes(optionId)
-        ? line.optionIds.filter((id) => id !== optionId)
-        : [...line.optionIds, optionId]
+      const group = line.item.option_groups.find((candidate) =>
+        candidate.options.some((option) => option.id === optionId))
+      if (!group) return line
+      const optionIds = [
+        ...line.optionIds.filter((id) =>
+          !group.options.some((option) => option.id === id)),
+        optionId,
+      ]
       return { ...line, optionIds }
     }))
   }
@@ -138,6 +152,14 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
       setNotice(`Order #${order.id} created for ${money(order.total_price_paisa)}`)
       setOrders((current) => [order, ...current])
     } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 403) {
+        sessionStorage.removeItem(`orderer-token:${qrToken}`)
+        sessionStorage.removeItem(`orderer-session:${qrToken}`)
+        setOrdererToken(null)
+        setCart([])
+        setError('Your ordering access has expired or belongs to another guest. Claim ordering access again.')
+        return
+      }
       setError(reason instanceof Error ? reason.message : 'Unable to create order')
     } finally {
       setSubmitting(false)
@@ -179,17 +201,30 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
               <div>
                 <strong>{line.item.name}</strong>
                 <p className="muted">{money(line.item.base_price_paisa)} each</p>
-                {line.item.item_options.length > 0 && <div className="cart-options">
-                  {line.item.item_options.map((itemOption) => {
-                    const option = line.item.option_groups.flatMap((group) => group.options).find((value) => value.id === itemOption.option_id)
-                    return <label className="check" key={itemOption.option_id}><input type="checkbox" checked={line.optionIds.includes(itemOption.option_id)} onChange={() => toggleOption(line.key, itemOption.option_id)} />{option?.name ?? `Option ${itemOption.option_id}`}</label>
+                {line.item.option_groups.length > 0 && <div className="cart-options">
+                  {line.item.option_groups.map((group) => {
+                    const options = group.options.filter((option) =>
+                      line.item.item_options.some((itemOption) => itemOption.option_id === option.id))
+                    return <fieldset key={group.id}>
+                      <legend>{group.name} <span className="muted">(choose one)</span></legend>
+                      {options.map((option) => <label className="check" key={option.id}>
+                        <input
+                          type="radio"
+                          name={`${line.key}-group-${group.id}`}
+                          checked={line.optionIds.includes(option.id)}
+                          onChange={() => toggleOption(line.key, option.id)}
+                        />
+                        {option.name}
+                      </label>)}
+                    </fieldset>
                   })}
                 </div>}
+                {!hasCompleteOptions(line) && line.item.option_groups.length > 0 && <p className="muted">Select one option from each group.</p>}
               </div>
               <div className="actions"><button className="link-button" onClick={() => updateQuantity(line.key, -1)}>−</button><span>{line.quantity}</span><button className="link-button" onClick={() => updateQuantity(line.key, 1)}>+</button></div>
             </div>
           ))}
-          <button className="button primary" disabled={submitting || tableId === null || cart.length === 0} onClick={() => void submit()}>{submitting ? 'Submitting...' : 'Submit order'}</button>
+          <button className="button primary" disabled={submitting || tableId === null || cart.length === 0 || cart.some((line) => !hasCompleteOptions(line))} onClick={() => void submit()}>{submitting ? 'Submitting...' : 'Submit order'}</button>
         </aside>}
       </div>
     </section>

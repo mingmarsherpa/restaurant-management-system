@@ -44,6 +44,16 @@ class DiningSession(Base):
         nullable=True,
     )
 
+    orderer_token_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    orderer_claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     table: Mapped["RestaurantTable"] = relationship(
         back_populates="sessions",
     )

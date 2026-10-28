@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
 
 
 class OrderItemCreate(BaseModel):
@@ -11,6 +11,13 @@ class OrderItemCreate(BaseModel):
 
 class OrderCreate(BaseModel):
     items: list[OrderItemCreate] = Field(min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def wrap_item_list(cls, value: object) -> object:
+        if isinstance(value, list):
+            return {"items": value}
+        return value
 
 
 class OrderItemOptionRead(BaseModel):
@@ -34,6 +41,7 @@ class OrderItemRead(BaseModel):
 
 
 class TableSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: int
     table_number: int
 
@@ -58,6 +66,18 @@ class DiningSessionRead(BaseModel):
     status: str
     started_at: datetime
     closed_at: datetime | None
+
+
+class PublicTableRead(BaseModel):
+    table_id: int
+    table_number: int
+    session_id: int
+    session_status: str
+
+
+class OrdererClaimRead(BaseModel):
+    orderer_token: str
+    session_id: int
 
 
 class OrderStatusUpdate(BaseModel):

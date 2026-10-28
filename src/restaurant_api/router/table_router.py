@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import FRONTEND_URL
 from ..database import get_db
 from ..models.table import RestaurantTable
 from ..schemas.table import (
@@ -13,11 +14,25 @@ from ..schemas.table import (
     RestaurantTableRead,
     RestaurantTableUpdate,
 )
+from ..services.qr import generate_table_qr
 
 router = APIRouter(
     prefix="/tables",
     tags=["Restaurant Tables"],
 )
+
+
+@router.get("/{table_id}/qr")
+async def get_table_qr(
+    table_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    table = await db.get(RestaurantTable, table_id)
+    if table is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Table not found")
+
+    image = generate_table_qr(f"{FRONTEND_URL}/order?table={table.qr_code_token}")
+    return Response(content=image.getvalue(), media_type="image/png")
 
 
 @router.post(

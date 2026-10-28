@@ -1,15 +1,53 @@
 import type { Item, Pagination } from '../menu/types'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+import { API_URL } from '../../config'
+
+type ValidationError = {
+  loc?: Array<string | number>
+  msg?: string
+}
+
+type ErrorBody = {
+  detail?: string | ValidationError[]
+}
+
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(
+    message: string,
+    status: number,
+  ) {
+    super(message)
+    this.status = status
+    this.name = 'ApiError'
+  }
+}
+
+const formatValidationErrors = (errors: ValidationError[]) =>
+  errors
+    .map((error) => {
+      const location = error.loc
+        ?.filter((part) => part !== 'body')
+        .reduce(
+          (value, part) => typeof part === 'number' ? `${value}[${part}]` : value ? `${value}.${part}` : part,
+          '',
+        )
+      return location && error.msg ? `${location}: ${error.msg}` : error.msg ?? 'Invalid request'
+    })
+    .join('; ')
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
     ...init,
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
   if (!response.ok) {
-    const body = await response.json().catch(() => null)
-    throw new Error(body?.detail ?? `Request failed (${response.status})`)
+    const body = await response.json().catch(() => null) as ErrorBody | null
+    const detail = Array.isArray(body?.detail)
+      ? formatValidationErrors(body.detail)
+      : body?.detail
+    throw new ApiError(detail || `Request failed (${response.status})`, response.status)
   }
   return response.status === 204 ? (undefined as T) : response.json() as Promise<T>
 }
@@ -32,6 +70,22 @@ export type OrdererClaim = {
   session_id: number
 }
 
+export type OrderCreate = {
+  items: Array<{
+    item_id: number
+    quantity: number
+    option_ids: number[]
+  }>
+}
+
+type OrderCreateInput = OrderCreate | { items: Array<OrderCreate['items'][number] | number> }
+
+const normalizeOrderPayload = (payload: OrderCreateInput): OrderCreate => ({
+  items: payload.items.map((item) => typeof item === 'number'
+    ? { item_id: item, quantity: 1, option_ids: [] }
+    : item),
+})
+
 export const getPublicTable = (qrToken: string) =>
   request<PublicTable>(`/api/public/tables/${qrToken}`)
 
@@ -41,11 +95,11 @@ export const claimOrderer = (qrToken: string) =>
 export const listTableOrders = (qrToken: string) =>
   request<Order[]>(`/api/public/tables/${qrToken}/orders`)
 
-export const createTableOrder = (tableId: number, payload: unknown, ordererToken: string) =>
+export const createTableOrder = (tableId: number, payload: OrderCreateInput, ordererToken: string) =>
   request<Order>(`/api/tables/${tableId}/orders`, {
     method: 'POST',
     headers: { 'X-Orderer-Token': ordererToken },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(normalizeOrderPayload(payload)),
   })
 
 export type MenuPage = {
