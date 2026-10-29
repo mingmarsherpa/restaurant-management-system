@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from ..database import get_db
 from ..models.dining_session import DiningSession
+from ..models.bill import Bill
 from ..models.menu import Item, ItemOption, OptionGroup
 from ..models.order import Order, OrderItem, OrderItemOption
 from ..models.table import RestaurantTable
@@ -21,6 +22,7 @@ from ..schemas.order import (
     OrderStatusUpdate,
     PublicTableRead,
 )
+from ..schemas.bill import BillRead
 
 
 router = APIRouter(tags=["orders"])
@@ -118,6 +120,77 @@ def _validate_status(value: str, allowed: set[str]) -> str:
             detail=f"Status must be one of: {', '.join(sorted(allowed))}",
         )
     return value
+
+
+def _bill_payload(
+    bill: Bill,
+    dining_session: DiningSession,
+) -> dict:
+    included_orders = [
+        order for order in dining_session.orders if order.status != "cancelled"
+    ]
+    excluded_orders = [
+        order for order in dining_session.orders if order.status == "cancelled"
+    ]
+    subtotal = sum(order.total_price_paisa for order in included_orders)
+    bill.subtotal_paisa = subtotal
+    bill.total_paisa = subtotal
+    bill.included_order_count = len(included_orders)
+    return {
+        "id": bill.id,
+        "dining_session_id": dining_session.id,
+        "table_id": dining_session.table_id,
+        "table_number": dining_session.table.table_number,
+        "status": bill.status,
+        "subtotal_paisa": bill.subtotal_paisa,
+        "total_paisa": bill.total_paisa,
+        "included_order_count": bill.included_order_count,
+        "created_at": bill.created_at,
+        "paid_at": bill.paid_at,
+        "confirmed_at": bill.confirmed_at,
+        "included_orders": included_orders,
+        "excluded_cancelled_orders": excluded_orders,
+    }
+
+
+async def _load_bill(
+    bill_id: int,
+    session: AsyncSession,
+    *,
+    for_update: bool = False,
+) -> tuple[Bill, DiningSession]:
+    query = (
+        select(Bill)
+        .join(Bill.dining_session)
+        .where(Bill.id == bill_id)
+        .options(
+            selectinload(Bill.dining_session).selectinload(DiningSession.table),
+            selectinload(Bill.dining_session)
+            .selectinload(DiningSession.orders)
+            .selectinload(Order.items)
+            .selectinload(OrderItem.selected_options),
+        )
+    )
+    if for_update:
+        query = query.with_for_update()
+    bill = await session.scalar(query)
+    if bill is None:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    return bill, bill.dining_session
+
+
+async def _get_or_create_bill(
+    dining_session: DiningSession,
+    session: AsyncSession,
+) -> Bill:
+    bill = await session.scalar(
+        select(Bill).where(Bill.dining_session_id == dining_session.id)
+    )
+    if bill is None:
+        bill = Bill(dining_session=dining_session)
+        session.add(bill)
+        await session.flush()
+    return bill
 
 
 async def _load_order_for_table(
@@ -317,6 +390,7 @@ async def create_order(
 
     order.total_price_paisa = total
     session.add(order)
+    await _get_or_create_bill(dining_session, session)
     await session.commit()
     return await _load_order(order.id, session)
 
@@ -371,6 +445,118 @@ async def close_current_session(
 
 
 @router.get(
+    "/api/admin/tables/{table_id}/bill",
+    response_model=BillRead,
+)
+async def get_current_bill(
+    table_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    await _get_table(table_id, session)
+    dining_session = await session.scalar(
+        select(DiningSession)
+        .where(
+            DiningSession.table_id == table_id,
+            DiningSession.status == "open",
+        )
+        .options(
+            selectinload(DiningSession.table),
+            selectinload(DiningSession.orders)
+            .selectinload(Order.items)
+            .selectinload(OrderItem.selected_options),
+        )
+        .order_by(DiningSession.id.desc())
+    )
+    if dining_session is None:
+        raise HTTPException(status_code=404, detail="No open dining session")
+    if not dining_session.orders:
+        raise HTTPException(status_code=404, detail="No orders for this dining session")
+    bill = await session.scalar(
+        select(Bill).where(Bill.dining_session_id == dining_session.id)
+    )
+    if bill is None:
+        raise HTTPException(status_code=404, detail="No bill for this dining session")
+    payload = _bill_payload(bill, dining_session)
+    await session.commit()
+    return payload
+
+
+@router.get(
+    "/api/admin/bills",
+    response_model=list[BillRead],
+)
+async def list_admin_bills(
+    bill_status: str | None = Query(default=None, alias="status"),
+    table_id: int | None = None,
+    session: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    if bill_status is not None:
+        _validate_status(bill_status, {"open", "paid", "confirmed"})
+    query = (
+        select(Bill)
+        .join(Bill.dining_session)
+        .join(DiningSession.orders)
+        .options(
+            selectinload(Bill.dining_session).selectinload(DiningSession.table),
+            selectinload(Bill.dining_session)
+            .selectinload(DiningSession.orders)
+            .selectinload(Order.items)
+            .selectinload(OrderItem.selected_options),
+        )
+        .order_by(Bill.created_at.desc())
+    )
+    if bill_status is not None:
+        query = query.where(Bill.status == bill_status)
+    if table_id is not None:
+        query = query.where(DiningSession.table_id == table_id)
+    bills = list((await session.scalars(query)).unique())
+    payloads = [_bill_payload(bill, bill.dining_session) for bill in bills]
+    await session.commit()
+    return payloads
+
+
+@router.get(
+    "/api/admin/bills/{bill_id}",
+    response_model=BillRead,
+)
+async def get_admin_bill(
+    bill_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    bill, dining_session = await _load_bill(bill_id, session)
+    return _bill_payload(bill, dining_session)
+
+
+@router.post(
+    "/api/admin/bills/{bill_id}/confirm-payment",
+    response_model=BillRead,
+)
+async def confirm_bill_payment(
+    bill_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    bill, dining_session = await _load_bill(bill_id, session, for_update=True)
+    if bill.status == "confirmed":
+        raise HTTPException(status_code=409, detail="Bill payment is already confirmed")
+    if dining_session.status != "open":
+        raise HTTPException(status_code=409, detail="Dining session is already closed")
+
+    now = datetime.now(timezone.utc)
+    bill.status = "confirmed"
+    bill.paid_at = now
+    bill.confirmed_at = now
+    dining_session.status = "closed"
+    dining_session.closed_at = now
+    for order in dining_session.orders:
+        if order.status != "cancelled":
+            order.status = "completed"
+
+    payload = _bill_payload(bill, dining_session)
+    await session.commit()
+    return payload
+
+
+@router.get(
     "/api/public/tables/{qr_token}/orders",
     response_model=list[OrderRead],
 )
@@ -379,7 +565,18 @@ async def list_public_table_orders(
     session: AsyncSession = Depends(get_db),
 ) -> list[Order]:
     table = await _get_table_by_qr_token(qr_token, session)
-    return await list_table_orders(table.id, session)
+    dining_session = await _get_open_session(table.id, session)
+    await session.commit()
+    result = await session.execute(
+        select(Order)
+        .where(Order.session_id == dining_session.id)
+        .options(
+            selectinload(Order.items).selectinload(OrderItem.selected_options),
+            selectinload(Order.session).selectinload(DiningSession.table),
+        )
+        .order_by(Order.created_at.desc())
+    )
+    return list(result.scalars().unique())
 
 
 @router.get(

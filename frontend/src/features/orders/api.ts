@@ -126,3 +126,19 @@ export type Order = {
   table: { id: number; table_number: number }
   items: OrderItem[]
 }
+
+export type Bill = {
+  id: number
+  dining_session_id: number
+  table_id: number
+  table_number: number
+  status: string
+  subtotal_paisa: number
+  total_paisa: number
+  included_order_count: number
+  created_at: string
+  paid_at: string | null
+  confirmed_at: string | null
+  included_orders: Order[]
+  excluded_cancelled_orders: Order[]
+}

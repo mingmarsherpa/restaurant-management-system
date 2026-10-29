@@ -47,9 +47,23 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
         ])
         setTableId(loadedTable.table_id)
         setTableNumber(loadedTable.table_number)
-        const storedSessionId = sessionStorage.getItem(`orderer-session:${qrToken}`)
+        const storedSessionKey = `orderer-session:${qrToken}`
+        const storedTokenKey = `orderer-token:${qrToken}`
+        const storedSessionId = localStorage.getItem(storedSessionKey)
+          ?? sessionStorage.getItem(storedSessionKey)
+        const storedToken = localStorage.getItem(storedTokenKey)
+          ?? sessionStorage.getItem(storedTokenKey)
         if (storedSessionId === String(loadedTable.session_id)) {
-          setOrdererToken(sessionStorage.getItem(`orderer-token:${qrToken}`))
+          if (storedToken !== null) {
+            localStorage.setItem(storedSessionKey, storedSessionId)
+            localStorage.setItem(storedTokenKey, storedToken)
+          }
+          setOrdererToken(storedToken)
+        } else if (storedSessionId !== null) {
+          sessionStorage.removeItem(storedSessionKey)
+          sessionStorage.removeItem(storedTokenKey)
+          localStorage.removeItem(storedSessionKey)
+          localStorage.removeItem(storedTokenKey)
         }
         setItems(loadedItems.items)
         setOrders(loadedOrders)
@@ -73,8 +87,8 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
     setError('')
     try {
       const claimed = await claimOrderer(qrToken)
-      sessionStorage.setItem(`orderer-token:${qrToken}`, claimed.orderer_token)
-      sessionStorage.setItem(`orderer-session:${qrToken}`, String(claimed.session_id))
+      localStorage.setItem(`orderer-token:${qrToken}`, claimed.orderer_token)
+      localStorage.setItem(`orderer-session:${qrToken}`, String(claimed.session_id))
       setOrdererToken(claimed.orderer_token)
       setNotice('You can now place orders for this table.')
     } catch (reason) {
@@ -153,8 +167,8 @@ export function OrderPage({ onBack }: { onBack: () => void }) {
       setOrders((current) => [order, ...current])
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 403) {
-        sessionStorage.removeItem(`orderer-token:${qrToken}`)
-        sessionStorage.removeItem(`orderer-session:${qrToken}`)
+        localStorage.removeItem(`orderer-token:${qrToken}`)
+        localStorage.removeItem(`orderer-session:${qrToken}`)
         setOrdererToken(null)
         setCart([])
         setError('Your ordering access has expired or belongs to another guest. Claim ordering access again.')

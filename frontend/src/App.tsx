@@ -7,8 +7,9 @@ import { ItemsPanel } from './features/menu/ItemsPanel'
 import { OptionsPanel } from './features/menu/OptionsPanel'
 import { pagePath, request as menuRequest } from './features/menu/api'
 import { OrderPage } from './features/orders/OrderPage'
+import { BillsPanel } from './features/orders/BillsPanel'
 import { OrdersPanel } from './features/orders/OrdersPanel'
-import { request as orderRequest, type Order } from './features/orders/api'
+import { request as orderRequest, type Bill, type Order } from './features/orders/api'
 import { listTables, type Table } from './features/tables/api'
 import { TablePanel } from './features/tables/TablePanel'
 import type { Item, Mutate, Option, OptionGroup, Page, Pagination, Tab } from './features/menu/types'
@@ -53,6 +54,7 @@ function AdminShell() {
   const [options, setOptions] = useState<Page<Option[]> | null>(null)
   const [tables, setTables] = useState<Table[]>([])
   const [orders, setOrders] = useState<Order[]>([])
+  const [bills, setBills] = useState<Bill[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -61,18 +63,20 @@ function AdminShell() {
     setLoading(true)
     setError('')
     try {
-      const [loadedItems, loadedGroups, loadedOptions, loadedTables, loadedOrders] = await Promise.all([
+      const [loadedItems, loadedGroups, loadedOptions, loadedTables, loadedOrders, loadedBills] = await Promise.all([
         menuRequest<{ items: Item[]; pagination: Pagination }>(pagePath('/items', itemPage, PAGE_SIZE)),
         menuRequest<{ groups: OptionGroup[]; pagination: Pagination }>(pagePath('/option-groups', groupPage, PAGE_SIZE)),
         menuRequest<{ options: Option[]; pagination: Pagination }>(pagePath('/options', optionPage, PAGE_SIZE)),
         listTables(),
         orderRequest<Order[]>('/api/admin/orders'),
+        orderRequest<Bill[]>('/api/admin/bills?status=open'),
       ])
       setItems({ data: loadedItems.items, pagination: loadedItems.pagination })
       setGroups({ data: loadedGroups.groups, pagination: loadedGroups.pagination })
       setOptions({ data: loadedOptions.options, pagination: loadedOptions.pagination })
       setTables(loadedTables)
       setOrders(loadedOrders)
+      setBills(loadedBills)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load admin data')
     } finally {
@@ -103,8 +107,8 @@ function AdminShell() {
     <section className="intro"><div><p className="eyebrow accent">Admin workspace</p><h2>Manage your restaurant.</h2><p className="muted">Maintain tables, dishes, orders, and choices.</p></div><div className="stats"><Stat label="Dishes" value={items?.pagination.total ?? 0} /><Stat label="Tables" value={tables.length} /><Stat label="Open orders" value={orders.length} /></div></section>
     {error && <div className="alert error">{error}</div>}
     {notice && <div className="alert success">{notice}</div>}
-    <nav className="tabs" aria-label="Admin resources">{(['items', 'groups', 'options', 'tables', 'orders'] as const).map((value) => <button key={value} className={tab === value ? 'tab active' : 'tab'} onClick={() => setTab(value)}>{value === 'items' ? 'Dishes' : value === 'groups' ? 'Option groups' : value === 'options' ? 'Choices' : value === 'tables' ? 'Tables' : 'Orders'}<span>{value === 'items' ? items?.pagination.total ?? 0 : value === 'groups' ? groups?.pagination.total ?? 0 : value === 'options' ? options?.pagination.total ?? 0 : value === 'tables' ? tables.length : orders.length}</span></button>)}</nav>
-    {loading ? <div className="empty-state"><span className="loader" /> Loading admin data...</div> : tab === 'orders' ? <OrdersPanel orders={orders} onChange={setOrders} /> : tab === 'tables' ? <TablePanel tables={tables} orders={orders} onChange={setTables} /> : tab === 'items' ? <ItemsPanel items={items?.data ?? []} groups={groups?.data ?? []} options={options?.data ?? []} pagination={items?.pagination ?? emptyPagination} onPageChange={(page) => void load(page, groups?.pagination.page, options?.pagination.page)} mutate={mutate} /> : tab === 'groups' ? <GroupsPanel groups={groups?.data ?? []} pagination={groups?.pagination ?? emptyPagination} onPageChange={(page) => void load(items?.pagination.page, page, options?.pagination.page)} mutate={mutate} /> : <OptionsPanel groups={groups?.data ?? []} options={options?.data ?? []} pagination={options?.pagination ?? emptyPagination} onPageChange={(page) => void load(items?.pagination.page, groups?.pagination.page, page)} mutate={mutate} />}
+    <nav className="tabs" aria-label="Admin resources">{(['items', 'groups', 'options', 'tables', 'orders', 'bills'] as const).map((value) => <button key={value} className={tab === value ? 'tab active' : 'tab'} onClick={() => setTab(value)}>{value === 'items' ? 'Dishes' : value === 'groups' ? 'Option groups' : value === 'options' ? 'Choices' : value === 'tables' ? 'Tables' : value === 'orders' ? 'Orders' : 'Bills'}<span>{value === 'items' ? items?.pagination.total ?? 0 : value === 'groups' ? groups?.pagination.total ?? 0 : value === 'options' ? options?.pagination.total ?? 0 : value === 'tables' ? tables.length : value === 'orders' ? orders.length : bills.length}</span></button>)}</nav>
+    {loading ? <div className="empty-state"><span className="loader" /> Loading admin data...</div> : tab === 'bills' ? <BillsPanel bills={bills} onChange={setBills} /> : tab === 'orders' ? <OrdersPanel orders={orders} onChange={setOrders} /> : tab === 'tables' ? <TablePanel tables={tables} orders={orders} onChange={setTables} /> : tab === 'items' ? <ItemsPanel items={items?.data ?? []} groups={groups?.data ?? []} options={options?.data ?? []} pagination={items?.pagination ?? emptyPagination} onPageChange={(page) => void load(page, groups?.pagination.page, options?.pagination.page)} mutate={mutate} /> : tab === 'groups' ? <GroupsPanel groups={groups?.data ?? []} pagination={groups?.pagination ?? emptyPagination} onPageChange={(page) => void load(items?.pagination.page, page, options?.pagination.page)} mutate={mutate} /> : <OptionsPanel groups={groups?.data ?? []} options={options?.data ?? []} pagination={options?.pagination ?? emptyPagination} onPageChange={(page) => void load(items?.pagination.page, groups?.pagination.page, page)} mutate={mutate} />}
   </Shell>
 }
 

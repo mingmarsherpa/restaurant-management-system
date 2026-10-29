@@ -85,6 +85,9 @@ legend small { color: var(--muted); font-weight: 400; }
 .alert.error { background: #fff0ee; color: var(--red); }
 .alert.success { background: #edf7ef; color: var(--green-dark); }
 .order-admin-card { display: grid; gap: 16px; }
+.bill-card { display: grid; grid-template-columns: 1fr auto auto; gap: 20px; }
+.bill-total { align-self: center; font-size: 18px; }
+.bill-details { grid-column: 1 / -1; display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
 .order-admin-main { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .order-items { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
 .order-item-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; color: var(--ink); font-size: 13px; }

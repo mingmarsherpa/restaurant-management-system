@@ -62,3 +62,8 @@ class DiningSession(Base):
         back_populates="session",
         cascade="all, delete-orphan",
     )
+
+    bill: Mapped["Bill | None"] = relationship(
+        back_populates="dining_session",
+        uselist=False,
+    )
