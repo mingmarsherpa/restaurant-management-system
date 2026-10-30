@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..database import get_db
+from ..dependencies.auth import require_admin, require_staff
 from ..models.dining_session import DiningSession
 from ..models.bill import Bill
 from ..models.menu import Item, ItemOption, OptionGroup
@@ -420,6 +421,7 @@ async def list_table_orders(
 @router.post(
     "/api/admin/tables/{table_id}/sessions/close",
     response_model=DiningSessionRead,
+    dependencies=[Depends(require_admin)],
 )
 async def close_current_session(
     table_id: int,
@@ -447,6 +449,7 @@ async def close_current_session(
 @router.get(
     "/api/admin/tables/{table_id}/bill",
     response_model=BillRead,
+    dependencies=[Depends(require_admin)],
 )
 async def get_current_bill(
     table_id: int,
@@ -484,6 +487,7 @@ async def get_current_bill(
 @router.get(
     "/api/admin/bills",
     response_model=list[BillRead],
+    dependencies=[Depends(require_admin)],
 )
 async def list_admin_bills(
     bill_status: str | None = Query(default=None, alias="status"),
@@ -518,6 +522,7 @@ async def list_admin_bills(
 @router.get(
     "/api/admin/bills/{bill_id}",
     response_model=BillRead,
+    dependencies=[Depends(require_admin)],
 )
 async def get_admin_bill(
     bill_id: int,
@@ -530,6 +535,7 @@ async def get_admin_bill(
 @router.post(
     "/api/admin/bills/{bill_id}/confirm-payment",
     response_model=BillRead,
+    dependencies=[Depends(require_admin)],
 )
 async def confirm_bill_payment(
     bill_id: int,
@@ -582,6 +588,7 @@ async def list_public_table_orders(
 @router.get(
     "/api/admin/orders",
     response_model=list[AdminOrderRead],
+    dependencies=[Depends(require_staff)],
 )
 async def list_admin_orders(
     order_status: str | None = Query(default=None, alias="status"),
@@ -615,6 +622,7 @@ async def list_admin_orders(
 @router.get(
     "/api/admin/orders/{order_id}",
     response_model=AdminOrderRead,
+    dependencies=[Depends(require_staff)],
 )
 async def get_admin_order(
     order_id: int,
@@ -626,6 +634,7 @@ async def get_admin_order(
 @router.patch(
     "/api/admin/orders/{order_id}/status",
     response_model=AdminOrderRead,
+    dependencies=[Depends(require_staff)],
 )
 async def update_order_status(
     order_id: int,
@@ -644,6 +653,7 @@ async def update_order_status(
 @router.patch(
     "/api/admin/orders/{order_id}/items/{item_id}/status",
     response_model=AdminOrderRead,
+    dependencies=[Depends(require_staff)],
 )
 async def update_order_item_status(
     order_id: int,

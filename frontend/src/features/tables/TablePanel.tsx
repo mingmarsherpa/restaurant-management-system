@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Empty } from '../../components/Shared'
-import { closeTableSession, tableQrUrl, type Table } from './api'
+import { closeTableSession, type Table } from './api'
 import { request } from '../orders/api'
 import type { Order } from '../orders/api'
+import { API_URL } from '../../config'
+import { ACCESS_TOKEN_KEY } from '../../lib/api'
 
 export function TablePanel({ tables, orders, onChange }: { tables: Table[]; orders: Order[]; onChange: (tables: Table[]) => void }) {
   const [editing, setEditing] = useState<number | 'new' | null>(null)
@@ -50,12 +52,37 @@ export function TablePanel({ tables, orders, onChange }: { tables: Table[]; orde
       {tables.length === 0 ? <Empty title="No tables yet" text="Add a table before accepting customer orders." /> : tables.map((table) => (
         <article className="resource-card" key={table.id}>
           <div className="resource-main"><span className="number">#{String(table.id).padStart(2, '0')}</span><div><h4>Table {table.table_number}</h4><p className="muted">{table.is_active ? 'Active and available for orders' : 'Inactive'} · {orders.filter((order) => order.table.id === table.id).length} active order(s)</p></div></div>
-          <img className="table-qr" src={tableQrUrl(table.id)} alt={`QR code for table ${table.table_number}`} />
+          <TableQr tableId={table.id} tableNumber={table.table_number} />
           <div className="actions"><button className="link-button" onClick={() => void closeSession(table)}>Close session</button><button className="link-button" onClick={() => setEditing(table.id)}>Edit</button><button className="link-button danger-text" onClick={() => void remove(table)}>Delete</button></div>
         </article>
       ))}
     </div>
   </section>
+}
+
+function TableQr({ tableId, tableNumber }: { tableId: number; tableNumber: number }) {
+  const [source, setSource] = useState('')
+
+  useEffect(() => {
+    let objectUrl = ''
+    const load = async () => {
+      const token = localStorage.getItem(ACCESS_TOKEN_KEY)
+      const response = await fetch(`${API_URL}/api/tables/${tableId}/qr`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!response.ok) return
+      objectUrl = URL.createObjectURL(await response.blob())
+      setSource(objectUrl)
+    }
+    void load()
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [tableId])
+
+  return source
+    ? <img className="table-qr" src={source} alt={`QR code for table ${tableNumber}`} />
+    : <div className="table-qr" aria-label="Loading QR code"><span className="loader" /></div>
 }
 
 function TableForm({ table, onCancel, onSave }: { table?: Table; onCancel: () => void; onSave: (tableNumber: number, isActive: boolean, id?: number) => Promise<void> }) {

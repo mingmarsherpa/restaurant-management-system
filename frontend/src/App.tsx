@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import './App.css'
+import { useAuth } from './features/auth/useAuth'
+import { LoginPage } from './features/auth/LoginPage'
 import { Stat } from './components/Shared'
 import { GroupsPanel } from './features/menu/GroupsPanel'
 import { ItemsPanel } from './features/menu/ItemsPanel'
@@ -13,6 +15,7 @@ import { request as orderRequest, type Bill, type Order } from './features/order
 import { listTables, type Table } from './features/tables/api'
 import { TablePanel } from './features/tables/TablePanel'
 import type { Item, Mutate, Option, OptionGroup, Page, Pagination, Tab } from './features/menu/types'
+import { KitchenDashboard } from './features/orders/KitchenDashboard'
 
 const PAGE_SIZE = 5
 const emptyPagination: Pagination = { page: 1, page_size: PAGE_SIZE, total: 0, total_pages: 0 }
@@ -23,6 +26,7 @@ function navigate(path: string) {
 }
 
 function App() {
+  const { user, loading } = useAuth()
   const [path, setPath] = useState(window.location.pathname)
   useEffect(() => {
     const onPopState = () => setPath(window.location.pathname)
@@ -30,14 +34,35 @@ function App() {
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
-  return path.startsWith('/order') ? <CustomerShell /> : <AdminShell />
+  if (path.startsWith('/order')) return <CustomerShell />
+  if (loading) return <div className="empty-state app-loading"><span className="loader" /> Loading session...</div>
+  if (path === '/login') {
+    if (user) {
+      navigate(user.role === 'kitchen' ? '/kitchen' : '/admin')
+      return null
+    }
+    return <LoginPage />
+  }
+  if (!user) {
+    navigate('/login')
+    return null
+  }
+  if (user.role === 'kitchen') {
+    if (!path.startsWith('/kitchen')) {
+      navigate('/kitchen')
+      return null
+    }
+    return <KitchenDashboard />
+  }
+  return <AdminShell />
 }
 
 function Shell({ children, customer = false }: { children: ReactNode; customer?: boolean }) {
+  const { user, logout } = useAuth()
   return <main className="shell">
     <header className="topbar">
       <div className="brand"><span className="brand-mark">R</span><div><p className="eyebrow">{customer ? 'Restaurant ordering' : 'Restaurant admin'}</p><h1>{customer ? 'Place an order' : 'Restaurant studio'}</h1></div></div>
-      <button className="button ghost" onClick={() => navigate(customer ? '/admin' : '/order')}>{customer ? 'Admin' : 'Customer order'}</button>
+      {customer ? <button className="button ghost" onClick={() => navigate('/login')}>Staff login</button> : <div className="staff-actions"><span className="muted">{user?.username} · Admin</span><button className="button ghost" onClick={logout}>Logout</button></div>}
     </header>
     {children}
   </main>

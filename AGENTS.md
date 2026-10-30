@@ -12,6 +12,14 @@ Restaurant API built with Python 3.14, FastAPI, SQLAlchemy 2.x, asyncpg, and Ale
 - Start the development server with `uv run uvicorn restaurant_api.main:app --reload`.
 - Apply migrations with `uv run alembic upgrade head`.
 - Create a migration with `uv run alembic revision --autogenerate -m "describe change"`, then review it manually.
+- Seed an initial staff account with `uv run seed-user` after reviewing the
+  script and setting its required environment variables.
+
+## Frontend Setup
+
+- Install frontend dependencies with `cd frontend && npm install`.
+- Start the frontend with `npm run dev`.
+- Run frontend checks with `npm run lint` and `npm run build`.
 
 ## Code Guidelines
 
@@ -21,6 +29,8 @@ Restaurant API built with Python 3.14, FastAPI, SQLAlchemy 2.x, asyncpg, and Ale
 - Store monetary values as integer paisa fields, following the existing `*_paisa` convention.
 - Keep API request and response shapes in `schemas/`; keep persistence models in `models/`.
 - Prefer relative imports within the `restaurant_api` package.
+- Protect administrative routes with the existing authentication dependencies;
+  keep customer QR-ordering routes separate from staff-only routes.
 - Keep changes focused and avoid unrelated formatting or dependency upgrades.
 
 ## Database Changes
@@ -29,6 +39,8 @@ Restaurant API built with Python 3.14, FastAPI, SQLAlchemy 2.x, asyncpg, and Ale
 - Never edit an existing migration that may already have been applied; add a new migration instead.
 - Check foreign-key delete behavior and relationship cascades explicitly.
 - Do not commit credentials or local database files.
+- Set `JWT_SECRET_KEY` explicitly in deployed environments; do not rely on a
+  development fallback.
 
 ## Validation
 
@@ -36,3 +48,4 @@ Restaurant API built with Python 3.14, FastAPI, SQLAlchemy 2.x, asyncpg, and Ale
 - Run `uv run alembic check` when validating model and migration consistency.
 - If tests are added, run them with `uv run pytest`.
 - Inspect generated migrations before applying them to a shared database.
+- For frontend changes, run `npm run lint` and `npm run build` from `frontend/`.

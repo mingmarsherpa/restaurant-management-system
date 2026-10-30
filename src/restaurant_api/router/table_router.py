@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import FRONTEND_URL
 from ..database import get_db
+from ..dependencies.auth import require_admin
 from ..models.table import RestaurantTable
 from ..schemas.table import (
     RestaurantTableCreate,
@@ -19,6 +20,7 @@ from ..services.qr import generate_table_qr
 router = APIRouter(
     prefix="/tables",
     tags=["Restaurant Tables"],
+    dependencies=[Depends(require_admin)],
 )
 
 

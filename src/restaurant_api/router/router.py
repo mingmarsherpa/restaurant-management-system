@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..database import get_db
+from ..dependencies.auth import require_admin
 from ..models.menu import Item, ItemOption, Option, OptionGroup
 from ..schemas.menu import (
 	ItemCreate,
@@ -130,7 +131,7 @@ async def _load_group(session: AsyncSession, group_id: int) -> OptionGroup:
 	return group
 
 
-@router.post("/items", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
+@router.post("/items", response_model=ItemRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
 async def create_item(payload: ItemCreate, session: AsyncSession = Depends(get_db)) -> Item:
 	groups = await _get_groups(session, payload.option_group_ids)
 	options = await _get_options(
@@ -182,7 +183,7 @@ async def get_item(item_id: int, session: AsyncSession = Depends(get_db)) -> Ite
 	return await _load_item(session, item_id)
 
 
-@router.patch("/items/{item_id}", response_model=ItemRead)
+@router.patch("/items/{item_id}", response_model=ItemRead, dependencies=[Depends(require_admin)])
 async def update_item(
 	item_id: int,
 	payload: ItemUpdate,
@@ -222,7 +223,7 @@ async def update_item(
 	return await _load_item(session, item_id)
 
 
-@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 async def delete_item(item_id: int, session: AsyncSession = Depends(get_db)) -> Response:
 	item = await _load_item(session, item_id)
 	await session.delete(item)
@@ -234,6 +235,7 @@ async def delete_item(item_id: int, session: AsyncSession = Depends(get_db)) -> 
 	"/option-groups",
 	response_model=OptionGroupRead,
 	status_code=status.HTTP_201_CREATED,
+	dependencies=[Depends(require_admin)],
 )
 async def create_option_group(
 	payload: OptionGroupCreate,
@@ -274,7 +276,7 @@ async def get_option_group(
 	return await _load_group(session, group_id)
 
 
-@router.patch("/option-groups/{group_id}", response_model=OptionGroupRead)
+@router.patch("/option-groups/{group_id}", response_model=OptionGroupRead, dependencies=[Depends(require_admin)])
 async def update_option_group(
 	group_id: int,
 	payload: OptionGroupUpdate,
@@ -287,7 +289,7 @@ async def update_option_group(
 	return await _load_group(session, group_id)
 
 
-@router.delete("/option-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/option-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 async def delete_option_group(
 	group_id: int,
 	session: AsyncSession = Depends(get_db),
@@ -298,7 +300,7 @@ async def delete_option_group(
 	return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/options", response_model=OptionRead, status_code=status.HTTP_201_CREATED)
+@router.post("/options", response_model=OptionRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
 async def create_option(
 	payload: OptionCreate,
 	session: AsyncSession = Depends(get_db),
@@ -341,7 +343,7 @@ async def get_option(option_id: int, session: AsyncSession = Depends(get_db)) ->
 	return option
 
 
-@router.patch("/options/{option_id}", response_model=OptionRead)
+@router.patch("/options/{option_id}", response_model=OptionRead, dependencies=[Depends(require_admin)])
 async def update_option(
 	option_id: int,
 	payload: OptionUpdate,
@@ -362,7 +364,7 @@ async def update_option(
 	return option
 
 
-@router.delete("/options/{option_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/options/{option_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 async def delete_option(option_id: int, session: AsyncSession = Depends(get_db)) -> Response:
 	option = await session.get(Option, option_id)
 	if option is None:
@@ -375,6 +377,7 @@ async def delete_option(option_id: int, session: AsyncSession = Depends(get_db))
 @router.put(
 	"/items/{item_id}/options/{option_id}",
 	response_model=ItemOptionPriceRead,
+	dependencies=[Depends(require_admin)],
 )
 async def set_item_option_price(
 	item_id: int,
@@ -408,6 +411,7 @@ async def set_item_option_price(
 @router.delete(
 	"/items/{item_id}/options/{option_id}",
 	status_code=status.HTTP_204_NO_CONTENT,
+	dependencies=[Depends(require_admin)],
 )
 async def delete_item_option_price(
 	item_id: int,

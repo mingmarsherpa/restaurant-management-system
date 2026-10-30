@@ -11,6 +11,7 @@ from src.restaurant_api.models.table import RestaurantTable
 from src.restaurant_api.models.dining_session import DiningSession
 from src.restaurant_api.models.order import Order, OrderItem, OrderItemOption
 from src.restaurant_api.models.bill import Bill
+from src.restaurant_api.models.user import User, Role
 from src.restaurant_api.config import DATABASE_URL
 
 config = context.config

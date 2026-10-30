@@ -5,6 +5,7 @@ from .config import FRONTEND_URL
 from .router.router import router as menu_router
 from .router.order_router import router as order_router
 from .router.table_router import router as table_router
+from .router.auth_router import router as auth_router
 
 
 app = FastAPI(title="Restaurant API")
@@ -18,6 +19,7 @@ app.add_middleware(
 app.include_router(menu_router)
 app.include_router(table_router, prefix="/api")
 app.include_router(order_router)
+app.include_router(auth_router)
 
 
 @app.get("/")

@@ -1,56 +1,9 @@
 import type { Item, Pagination } from '../menu/types'
 
-import { API_URL } from '../../config'
+import { request, ApiError } from '../../lib/api'
 
-type ValidationError = {
-  loc?: Array<string | number>
-  msg?: string
-}
-
-type ErrorBody = {
-  detail?: string | ValidationError[]
-}
-
-export class ApiError extends Error {
-  readonly status: number
-
-  constructor(
-    message: string,
-    status: number,
-  ) {
-    super(message)
-    this.status = status
-    this.name = 'ApiError'
-  }
-}
-
-const formatValidationErrors = (errors: ValidationError[]) =>
-  errors
-    .map((error) => {
-      const location = error.loc
-        ?.filter((part) => part !== 'body')
-        .reduce(
-          (value, part) => typeof part === 'number' ? `${value}[${part}]` : value ? `${value}.${part}` : part,
-          '',
-        )
-      return location && error.msg ? `${location}: ${error.msg}` : error.msg ?? 'Invalid request'
-    })
-    .join('; ')
-
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-  })
-  if (!response.ok) {
-    const body = await response.json().catch(() => null) as ErrorBody | null
-    const detail = Array.isArray(body?.detail)
-      ? formatValidationErrors(body.detail)
-      : body?.detail
-    throw new ApiError(detail || `Request failed (${response.status})`, response.status)
-  }
-  return response.status === 204 ? (undefined as T) : response.json() as Promise<T>
-}
+export { ApiError }
+export { request }
 
 export type Table = {
   id: number

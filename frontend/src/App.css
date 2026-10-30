@@ -6,6 +6,11 @@ body { margin: 0; background: var(--cream); color: var(--ink); font-family: 'DM 
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 .shell { max-width: 1120px; min-height: 100vh; margin: auto; padding: 28px 44px 72px; }
+.auth-page { display: grid; min-height: 100vh; place-items: center; padding: 24px; background: var(--cream); }
+.auth-card { width: min(100%, 420px); }
+.auth-card > .button { width: 100%; }
+.staff-actions { display: flex; align-items: center; gap: 12px; }
+.app-loading { min-height: 100vh; border: 0; background: var(--cream); }
 .topbar, .brand, .section-heading, .resource-card, .form-heading, .form-actions, .intro, .actions { display: flex; align-items: center; }
 .topbar, .section-heading, .resource-card, .form-heading, .form-actions, .intro { justify-content: space-between; }
 .brand { gap: 13px; }
